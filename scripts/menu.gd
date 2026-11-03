@@ -1257,10 +1257,11 @@ func _show(name: String) -> void:
 	for k in screens:
 		screens[k].visible = k == name
 	back_btn.visible = name != "main" and name != "test"
-	credit_box.visible = name == "main"
+	credit_box.visible = name == "main" and not SV.simple()
 	shade.color.a = 0.30 if name == "main" else 0.62
 	for pn in [coin_pill, tix_pill, name_pill, news_top, support_top, mute_top, set_top]:
 		pn.visible = name != "test"
+	tix_pill.visible = tix_pill.visible and not SV.simple()   # Simple Mode: tickets only buy gacha pulls
 	if is_overlay:
 		for pn2 in [coin_pill, tix_pill, name_pill, news_top, support_top, mute_top, set_top]:
 			pn2.visible = false
@@ -2006,7 +2007,21 @@ func _build_main() -> void:
 		bst.offset_top = -17.0
 		bst.offset_bottom = 17.0
 		b.add_child(bst)
+		if SV.simple() and key == "play":
+			# Simple Mode: Play starts a Normal run straight away; this small gear opens the mode list.
+			bst.visible = false
+			var mode_btn := _icon_btn("gear", func(): _open_modes())
+			mode_btn.custom_minimum_size = Vector2(42, 38)
+			mode_btn.tooltip_text = L.t("Elegir modo de juego")
+			mode_btn.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+			mode_btn.offset_left = -50.0
+			mode_btn.offset_right = -8.0
+			mode_btn.offset_top = -19.0
+			mode_btn.offset_bottom = 19.0
+			b.add_child(mode_btn)
 		mv.add_child(b)
+		if SV.simple() and key in ["gacha", "gachapon", "goals"]:
+			b.visible = false   # Simple Mode: no gacha, TM gachapon or missions
 		if first:
 			first = false
 			main_play_btn = b
@@ -2064,8 +2079,10 @@ func _menu_pick(key: String) -> void:
 	if key == "goals" and goals_tab == "p":
 		goals_tab = "m"
 	if key == "play":
-		modes_sel = String(MODE_LIST[0][0])   # v5.2.1: al darle a Jugar siempre se empieza arriba, en el primer modo (Partida normal)
-		_show("modes")
+		if SV.simple():
+			_start_mode(String(MODE_LIST[0][0]))   # Simple Mode: Play = Normal run (the gear opens the mode list)
+			return
+		_open_modes()
 	else:
 		_show(key)
 
@@ -2121,6 +2138,12 @@ const MODE_LIST := [
 	["chal_w", "Retos semanales", "gcoin_gold", "Retos", ["5 retos nuevos cada semana.", "Uno es de nivel Experto y da Gachapon Coin Dorada."]],
 	["mods", "Modificadores", "m_horde", "Ajustes", ["Cambian las reglas de la partida para ganar más monedas.", "+25% de monedas por cada modificador activo.", "No se aplican al Desafío diario ni al Modo Fiesta."]],
 ]
+
+
+func _open_modes() -> void:
+	last_pick = "play"
+	modes_sel = String(MODE_LIST[0][0])   # v5.2.1: al darle a Jugar siempre se empieza arriba, en el primer modo (Partida normal)
+	_show("modes")
 
 
 func _start_mode(mode: String) -> void:
@@ -8250,6 +8273,13 @@ func _set_controls() -> void:
 		SV.save()
 		_refresh_settings()))
 	_srow("Joystick fijo", "El joystick se queda siempre abajo a la izquierda en vez de aparecer donde tocas.", _toggle_set("stick_fixed"))
+	_srow("Modo sencillo", "Todos los Pokémon desbloqueados, todos tus movimientos atacan solos y un menú más simple, sin gacha. Desactívalo para jugar como el original.", _yesno(SV.simple(), func(v: bool):
+		SV.d["settings"]["simple_mode"] = v
+		if v:
+			SV.unlock_all()
+		SV.save()
+		SV.reopen = "settings"
+		get_tree().reload_current_scene()))
 	_srow("Apuntado manual", "Apunta tú mismo: stick derecho del mando, el ratón o un segundo dedo arrastrando en la mitad derecha de la pantalla. Si no apuntas, el juego apunta solo.", _toggle_set("manual_aim"))
 	_sec("Mando")
 	settings_box.add_child(_label("Stick izquierdo o cruceta: moverte y navegar por los menús. Pulsa un botón de la lista y luego el botón del mando que quieras asignarle.", 20, Color("#c8d6ee")))
@@ -8331,7 +8361,7 @@ func _set_account() -> void:
 			rb.text = L.t("¿Seguro? Pulsa otra vez para borrar TODO")
 		else:
 			SV.reset_all()
-			_show("test"))
+			_show("main" if SV.simple() else "test"))
 	settings_box.add_child(rb)
 
 

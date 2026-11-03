@@ -1436,6 +1436,7 @@ func _refresh_slots() -> void:
 		})
 	slots.info = info
 	slots.active = player.slot
+	slots.all_active = _autofire_all()
 	slots.enabled = not choosing and not player.dead and not down
 
 
@@ -2076,7 +2077,7 @@ func _update_player(delta: float) -> void:
 	else:
 		player.loop_anim("Idle", 1.0)
 
-	for m in _active_group():
+	for m in _firing_moves():
 		if moving and String(m["id"]) == "flame-wheel":
 			# Rastro de fuego de Rueda Fuego: llamas y chispas tras el jugador mientras corre.
 			for k in range(2):
@@ -2340,7 +2341,7 @@ func _hurt_player(amount: float, atk_type: String = "", pure: bool = false) -> v
 		if ab_fx.has("defiant"):
 			defiant_t = 4.0
 	var close: float = 1.0
-	for gm in _active_group():
+	for gm in _firing_moves():
 		if String(gm["kind"]) == "melee":
 			close = 0.75        # cuerpo a cuerpo: recibes un 25% menos
 	var d: float = maxf(1.0, amount * (1.0 - _reduction()) * close * _rk("taken"))
@@ -8054,6 +8055,21 @@ func _active_group() -> Array:
 	return sl[clampi(player.slot, 0, sl.size() - 1)]
 
 
+# Fork SIMPLE MODE (default): every move attacks on its own, like other survivor games,
+# instead of only the active slot. Simple Mode off = the original one-active-move behaviour.
+func _autofire_all() -> bool:
+	return SV.simple()
+
+
+func _firing_moves() -> Array:
+	if not _autofire_all():
+		return _active_group()
+	var out: Array = []
+	for g in _slot_list():
+		out.append_array(g)
+	return out
+
+
 func _bond_options() -> Dictionary:
 	var loose: Array = []
 	for m in player.moves:
@@ -10422,6 +10438,7 @@ class Slots extends Node2D:
 	const SZ := 76.0
 	var info: Array = []
 	var active := 0
+	var all_active := false   # fork: every slot is firing, so every slot is drawn as active
 	var enabled := true
 
 	func _rects() -> Array:
@@ -10456,7 +10473,7 @@ class Slots extends Node2D:
 			var r: Rect2 = rs[i]
 			var it: Dictionary = info[i]
 			var col: Color = it["color"]
-			var is_act: bool = i == active
+			var is_act: bool = all_active or i == active
 			var border: Color = Color("#e8c94f") if is_act else Color(col.r, col.g, col.b, 0.6)
 			var sb := StyleBoxFlat.new()
 			sb.bg_color = Color(0.05, 0.11, 0.18, 0.93)

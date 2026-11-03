@@ -90,7 +90,7 @@ static func default_data() -> Dictionary:
 		"v": 1, "created": int(Time.get_unix_time_from_system()), "title": "", "nick": "", "favs": [0, 0, 0], "coins": 600, "tickets": 10, "tickets10": 3, "pity": {}, "legends": {}, "arenas": {}, "lshiny": {}, "owned": {}, "selected": 25, "shiny_on": false,
 		"fusions": [], "upgrades": {}, "pup": {}, "claimed": {}, "pban": {}, "pbind": {}, "ptm": {}, "pz": {},
 		"stats": {"runs": 0, "kills": 0, "best_time": 0, "best_level": 1, "bosses": 0, "chests": 0, "pulls": 0, "shinies": 0, "total_time": 0, "coins_total": 0, "defeated_runs": 0, "rifts": 0},
-		"settings": {"master": 80, "music": 70, "sfx": 80, "dmg_numbers": true, "vibration": true, "shake": true, "stick": 1, "stick_fixed": false, "manual_aim": false, "lang": "en", "view": 100, "fov": 165, "pad": 0, "padmap": {}, "mute": false, "quality": 0, "perf": 0, "fps": false, "stats_box": false, "adaptive": true, "mono_bonus": false, "fx_op": 1, "act_side": 0, "text_sz": 0},
+		"settings": {"master": 80, "music": 70, "sfx": 80, "dmg_numbers": true, "vibration": true, "shake": true, "stick": 1, "stick_fixed": false, "manual_aim": false, "lang": "en", "view": 100, "fov": 165, "pad": 0, "padmap": {}, "mute": false, "quality": 0, "perf": 0, "fps": false, "stats_box": false, "adaptive": true, "mono_bonus": false, "fx_op": 1, "act_side": 0, "text_sz": 0, "simple_mode": true},
 	}
 
 
@@ -128,6 +128,8 @@ static func ensure() -> void:
 	if parsed is Dictionary:
 		d = _merge(d, parsed)
 	_migrate_upgrades()
+	if simple():
+		unlock_all()
 	# 6h: regalo unico de 1 Gachapon Coin por la actualizacion
 	if not bool(d.get("gift_6h", false)):
 		d["gift_6h"] = true
@@ -186,7 +188,31 @@ static func _add_top(e: Dictionary) -> void:
 static func reset_all() -> void:
 	d = default_data()
 	last_run = {}
+	if simple():
+		unlock_all()
 	save()
+
+
+# ---------------------------------------------------------------
+# Fork: SIMPLE MODE (kid-friendly, on by default). One switch for everything this fork changes:
+# every Pokemon unlocked (so no personality quiz), no gacha / TM gachapon / missions in the menu,
+# no credit or version label, and every move auto-fires (main.gd _firing_moves()).
+# ---------------------------------------------------------------
+static func simple() -> bool:
+	return bool(d["settings"].get("simple_mode", true))
+
+
+# Adds every Pokemon in the Pokedex to the collection. Kept even if Simple Mode is turned off later.
+static func unlock_all() -> void:
+	load_dex()
+	var added := 0
+	for p in dex_list:
+		var key := str(int(p["dex"]))
+		if not d["owned"].has(key):
+			d["owned"][key] = {"n": 1, "shiny": false}
+			added += 1
+	if added > 0:
+		save()
 
 
 # Guardados antiguos solo tenian el interruptor "shake".

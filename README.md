@@ -1,5 +1,14 @@
 # Pokémon Survivors — Android port
 
+> **This fork (adamczhang/poke-survivor)** is a kid-friendly version of the game, played in the
+> browser at **https://arcade.azhang.me/pokesurvivor/**. Its changes sit behind **Simple Mode**, which is
+> on by default and can be switched off in Settings to get the original game back:
+> every Pokémon unlocked (no starter quiz), every move auto-fires, Play starts a Normal run (the gear
+> next to it picks another mode), and the menu has no gacha, TM gachapon or missions.
+> Web build and deploy: see [`web/README.md`](web/README.md). Upstream port:
+> [JayElDragon/poke-survivor](https://github.com/JayElDragon/poke-survivor); original game:
+> [JPTER78/pokesurvivor](https://github.com/JPTER78/pokesurvivor). Credits and licenses below still apply.
+
 A free, fan-made Android port of **[PokéSurvivor](https://github.com/JPTER78/pokesurvivor) by JPTER78**, built with Godot. Survive endless waves of Pokémon, level up, evolve your moves, enter rifts to fight legendaries and face the Judgment of Arceus.
 
 **Port by [JayElDragon](https://github.com/JayElDragon).** All game design, systems and content come from the original game.

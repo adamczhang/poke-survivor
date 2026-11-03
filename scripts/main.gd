@@ -1723,7 +1723,22 @@ func _spd() -> float:
 
 
 func _cd_mul() -> float:
-	return CD_K * _cd_mul_raw()
+	return CD_K * _cd_mul_raw() * _simple_cd_penalty()
+
+
+# Simple Mode: all moves auto-fire, so each attack move beyond the first adds +25% cooldown to every move
+# (1 move x1.00, 2 x1.25, 3 x1.50, 4 x1.75 ...). More moves still mean more damage, just less spam.
+const SIMPLE_CD_STEP := 0.25
+
+
+func _simple_cd_penalty() -> float:
+	if not SV.simple():
+		return 1.0
+	var n := 0
+	for m in _firing_moves():
+		if String(m["kind"]) != "buff":
+			n += 1
+	return 1.0 + SIMPLE_CD_STEP * float(maxi(0, n - 1))
 
 
 func _cd_mul_raw() -> float:
@@ -3781,7 +3796,7 @@ func _orbit(m: Dictionary, delta: float) -> void:
 		ob.ospeed = _f(m, "speed")
 		ob.r = _f(m, "size", 8.0)
 		ob.color = _col(m)
-		ob.rehit = maxf(0.12, _f(m, "cd"))
+		ob.rehit = maxf(0.12, _f(m, "cd") * _simple_cd_penalty())
 		ob.knock = _f(m, "knock") * (1.0 if MD.KNOCK_LV.has(String(m["id"])) else 1.0 + 0.5 * float(int(m.get("lvl", 1)) - 1))   # el empuje sube con el nivel del movimiento
 		ob.burn = int(_f(m, "burn"))
 		ob.poison = int(_f(m, "poison"))
@@ -7862,6 +7877,8 @@ func _offer() -> Array:
 				continue
 			if buffs >= 2 and String(d["kind"]) == "buff":
 				continue
+			if SV.simple() and String(d["kind"]) == "buff":
+				continue   # Simple Mode: no boost moves (Harden, Swords Dance, Agility, Aqua Ring, Roost...)
 			cand.append(id)
 		# Los movimientos de tipo Normal salen menos (peso 0.15) para que los de tu propio tipo no queden opacados.
 		var keyed: Array = []

@@ -8273,7 +8273,7 @@ func _set_controls() -> void:
 		SV.save()
 		_refresh_settings()))
 	_srow("Joystick fijo", "El joystick se queda siempre abajo a la izquierda en vez de aparecer donde tocas.", _toggle_set("stick_fixed"))
-	_srow("Modo sencillo", "Todos los Pokémon desbloqueados, todos tus movimientos atacan solos y un menú más simple, sin gacha. Desactívalo para jugar como el original.", _yesno(SV.simple(), func(v: bool):
+	_srow("Modo sencillo", "Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos), sin movimientos de mejora y un menú más simple, sin gacha. Desactívalo para jugar como el original.", _yesno(SV.simple(), func(v: bool):
 		SV.d["settings"]["simple_mode"] = v
 		if v:
 			SV.unlock_all()

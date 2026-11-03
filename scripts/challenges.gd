@@ -88,6 +88,12 @@ const NO_NUM := ["survive_full", "legend", "slots6"]
 
 
 static func all() -> Array:
+	if SV.simple():
+		var out: Array = []   # Modo sencillo: fuera los retos que piden el Gachapon (no esta)
+		for d in DATA.ALL:
+			if not (d["need"] as Array).has("gachapon"):
+				out.append(d)
+		return out
 	return DATA.ALL
 
 
@@ -100,7 +106,7 @@ static func by_id(id: int) -> Dictionary:
 
 static func available(d: Dictionary) -> bool:
 	for n in d["need"]:
-		if not READY.has(String(n)):
+		if not READY.has(String(n)) or (SV.simple() and String(n) == "gachapon"):
 			return false
 	return true
 
@@ -232,7 +238,9 @@ static func grant(inst: Dictionary) -> String:
 		return ""
 	s["done"][key] = int(Time.get_unix_time_from_system())
 	var gold: bool = reward_gold(inst)
-	if gold:
+	if SV.simple():
+		SV.d["coins"] = int(SV.d["coins"]) + SV.simple_coins("gcoin_gold" if gold else "gcoin", 1)
+	elif gold:
 		SV.d["gold_coins"] = int(SV.d["gold_coins"]) + 1
 	else:
 		SV.d["gcoins"] = int(SV.d["gcoins"]) + 1

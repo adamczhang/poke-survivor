@@ -2141,6 +2141,22 @@ const MODE_LIST := [
 ]
 
 
+# Modo sencillo: los retos premian con Pokemonedas (no hay gacha), asi que su icono y su texto cambian.
+const SIMPLE_CHAL_RULES := {
+	"chal_p": ["Retos de 10 minutos como máximo.", "Cada uno da su premio una sola vez.", "Premio: 300 Pokémonedas; los más difíciles, 1000."],
+	"chal_d": ["3 retos nuevos cada día.", "Cada uno da 300 Pokémonedas la primera vez."],
+	"chal_w": ["5 retos nuevos cada semana.", "Uno es de nivel Experto y da 1000 Pokémonedas."],
+}
+
+
+func _mode_icon(m: Array) -> String:
+	return "coin" if SV.simple() and SIMPLE_CHAL_RULES.has(String(m[0])) else String(m[2])
+
+
+func _mode_rules(m: Array) -> Array:
+	return SIMPLE_CHAL_RULES[String(m[0])] if SV.simple() and SIMPLE_CHAL_RULES.has(String(m[0])) else m[4]
+
+
 func _open_modes() -> void:
 	last_pick = "play"
 	modes_sel = String(MODE_LIST[0][0])   # v5.2.1: al darle a Jugar siempre se empieza arriba, en el primer modo (Partida normal)
@@ -2655,7 +2671,7 @@ func _ribbon_sb(bg: Color, edge: Color, right: int) -> StyleBoxFlat:
 func _mode_tile(m: Array) -> Button:
 	var id: String = String(m[0])
 	var b := Button.new()
-	b.icon = IC.btn_tex(String(m[2]), 40)
+	b.icon = IC.btn_tex(_mode_icon(m), 40)
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.add_theme_constant_override("h_separation", 14)
 	b.add_theme_constant_override("icon_max_width", 40)
@@ -2793,9 +2809,9 @@ func _modes_select_impl(id: String) -> void:
 				for fc in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color"]:
 					tb.remove_theme_color_override(fc)
 	mp_title.text = L.t(String(m[1]))
-	mp_icon.texture = IC.btn_tex(String(m[2]), 38)
+	mp_icon.texture = IC.btn_tex(_mode_icon(m), 38)
 	_clear(mp_rules)
-	for r in m[4]:
+	for r in _mode_rules(m):
 		var rl := _label(L.t(String(r)), 18)
 		var rsb := StyleBoxEmpty.new()
 		rsb.content_margin_left = 22
@@ -2927,7 +2943,7 @@ func _modes_select_impl(id: String) -> void:
 				if CH.is_done(CH.key_perm(int(d["id"]))):
 					done_n += 1
 			if cat == "p":
-				mp_stat.text = L.t("Completados: %d / 100") % done_n
+				mp_stat.text = L.t("Completados: %d / %d") % [done_n, CH.all().size()]
 			else:
 				mp_stat.text = L.t("Se renuevan en %s") % CH.fmt_left(CH.secs_to_reset(cat == "w"))
 			info["goal1"] = L.t("Sobrevive %d min") % 3
@@ -3067,6 +3083,13 @@ func _chal_card(d: Dictionary, inst: Dictionary) -> Button:
 	rc.add_theme_constant_override("separation", 8)
 	row.add_child(rc)
 	var cr := _coin_row(1, gold)
+	if SV.simple():
+		cr = HBoxContainer.new()   # Modo sencillo: el premio es en Pokemonedas
+		cr.add_theme_constant_override("separation", 6)
+		cr.add_child(IC.rect("coin", 26))
+		var cl := _label("+%d" % SV.simple_coins("gcoin_gold" if gold else "gcoin", 1), 22, Color("#ffd23f"))
+		cl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		cr.add_child(cl)
 	cr.alignment = BoxContainer.ALIGNMENT_CENTER
 	rc.add_child(cr)
 	var out: Button = null
@@ -3104,8 +3127,9 @@ func _refresh_chal() -> void:
 	var t1 := _label("Retos de 10 minutos", 28, C_GOLD)
 	t1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bal.add_child(t1)
-	bal.add_child(_coin_row(int(SV.d.get("gcoins", 0)), false, 30.0))
-	bal.add_child(_coin_row(int(SV.d.get("gold_coins", 0)), true, 30.0))
+	if not SV.simple():   # Modo sencillo: no hay Gachapon Coins que contar
+		bal.add_child(_coin_row(int(SV.d.get("gcoins", 0)), false, 30.0))
+		bal.add_child(_coin_row(int(SV.d.get("gold_coins", 0)), true, 30.0))
 	var bsp := Control.new()
 	bsp.custom_minimum_size = Vector2(14, 0)
 	bal.add_child(bsp)
@@ -3138,7 +3162,7 @@ func _refresh_chal() -> void:
 		for d in CH.all():
 			if CH.is_done(CH.key_perm(int(d["id"]))):
 				done_n += 1
-		chal_box.add_child(_label(L.t("Completados: %d / 100") % done_n, 20, Color("#cfd9f5")))
+		chal_box.add_child(_label(L.t("Completados: %d / %d") % [done_n, CH.all().size()], 20, Color("#cfd9f5")))
 		for d in CH.all():
 			if chal_diff != "" and String(d["d"]) != chal_diff:
 				continue
@@ -8280,7 +8304,7 @@ func _set_controls() -> void:
 		_refresh_settings()))
 	_srow("Joystick fijo", "El joystick se queda siempre abajo a la izquierda en vez de aparecer donde tocas.", _toggle_set("stick_fixed"))
 	if not is_overlay:   # en partida recargaba la escena y se perdia la run
-		_srow("Modo sencillo", "Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos), sin movimientos de mejora, sin logros y un menú más simple, sin gacha. Desactívalo para jugar como el original.", _yesno(SV.simple(), func(v: bool):
+		_srow("Modo sencillo", "Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos), sin movimientos de mejora ni logros, recibes la mitad de daño (y 1 segundo a salvo tras cada golpe) y un menú más simple, sin gacha. Desactívalo para jugar como el original.", _yesno(SV.simple(), func(v: bool):
 			SV.d["settings"]["simple_mode"] = v
 			if v:
 				SV.unlock_all()

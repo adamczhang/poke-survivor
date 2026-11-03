@@ -1410,6 +1410,7 @@ func _process(delta: float) -> void:
 	hud.balls = balls
 	hud.tickets = tickets
 	hud.tickets10 = tickets10
+	hud.simple = SV.simple()
 	_update_rift_hud()
 	_update_thief_hud()
 	wx.kind = wx_kind
@@ -1729,6 +1730,9 @@ func _cd_mul() -> float:
 # Simple Mode: all moves auto-fire, so each attack move beyond the first adds +25% cooldown to every move
 # (1 move x1.00, 2 x1.25, 3 x1.50, 4 x1.75 ...). More moves still mean more damage, just less spam.
 const SIMPLE_CD_STEP := 0.25
+const SIMPLE_DMG_TAKEN := 0.5   # Modo sencillo: dano recibido x0.5
+const SIMPLE_HIT_LOCK := 1.0    # Modo sencillo: segundos sin recibir dano tras un golpe
+var simple_hit_lock := 0.0
 
 
 func _simple_cd_penalty() -> float:
@@ -2051,6 +2055,7 @@ func _update_player(delta: float) -> void:
 	player.position = _collide(player.position, player.radius * 0.55)
 	player_vel = (player.position - old_pos) / maxf(delta, 0.0001)
 	player.invuln = maxf(0.0, player.invuln - delta)
+	simple_hit_lock = maxf(0.0, simple_hit_lock - delta)
 	defiant_t = maxf(0.0, defiant_t - delta)
 	if bell_heal > 0.0:
 		var bh: float = minf(bell_heal, 4.0 * delta)
@@ -2338,6 +2343,8 @@ func _hurt_player(amount: float, atk_type: String = "", pure: bool = false) -> v
 		return
 	if player.invuln > 0.0:
 		return
+	if SV.simple() and simple_hit_lock > 0.0:
+		return   # Modo sencillo: 1 s sin recibir golpes tras cada golpe (ni los ataques que ponen invuln a 0)
 	if kec.dodge():
 		player.invuln = 0.3
 		add_text(player.position + Vector2(0.0, -player.body_h - 4.0), L.t("¡Esquivado!"), Color("#7fe0ff"), 18)
@@ -2364,6 +2371,9 @@ func _hurt_player(amount: float, atk_type: String = "", pure: bool = false) -> v
 	var d: float = maxf(1.0, amount * (1.0 - _reduction()) * close * _rk("taken"))
 	if pure:
 		d = maxf(1.0, amount)
+	if SV.simple():
+		d = maxf(1.0, d * SIMPLE_DMG_TAKEN)   # Modo sencillo: el heroe recibe la mitad de dano
+		simple_hit_lock = SIMPLE_HIT_LOCK
 	if tw_shield > 0.0:
 		var ab: float = minf(tw_shield, d)
 		tw_shield -= ab
@@ -2378,7 +2388,7 @@ func _hurt_player(amount: float, atk_type: String = "", pure: bool = false) -> v
 	ch_last_hurt = run_time
 	if mode == "tower" and (tw_boss != null or tw_boss2 != null):
 		tw_fight_dmg += d
-	player.invuln = 0.45
+	player.invuln = SIMPLE_HIT_LOCK if SV.simple() else 0.45   # el parpadeo dura lo mismo que el bloqueo
 	Aud.sfx("hurt")
 	if bool(SV.setting("vibration")):
 		Input.vibrate_handheld(40)
@@ -4565,7 +4575,9 @@ func _ch_finish(ok: bool) -> void:
 	if ok:
 		var got: String = CH.grant(ch_inst)
 		hud.end_big = L.t("¡RETO SUPERADO!")
-		if got == "gold":
+		if got != "" and SV.simple():
+			hud.end_l1 = L.t("Premio: %d Pokémonedas") % SV.simple_coins("gcoin_gold" if got == "gold" else "gcoin", 1)
+		elif got == "gold":
 			hud.end_l1 = L.t("Premio: 1 Gachapon Coin Dorada")
 		elif got == "coin":
 			hud.end_l1 = L.t("Premio: 1 Gachapon Coin")
@@ -5691,9 +5703,11 @@ func _spawn_thief(force_coins: bool = false) -> void:
 	e.golden = true
 	hud.thief_notice = 0.0
 	hud.thief_name = e.enemy_name
-	hud.thief_gold = gold
+	hud.thief_gold = gold and not SV.simple()
 	_ring(pos, 4.0, 40.0, Color("#ffd23f"), 0.5)
-	if gold:
+	if SV.simple():
+		_say(L.t("¡Un %s cargado de monedas! ¡Atrápalo antes de que huya!") % e.enemy_name, 3.2)
+	elif gold:
 		_say(L.t("¡Un %s con un ticket ×10! ¡Atrápalo antes de que huya!") % e.enemy_name, 3.2)
 	elif gimmi:
 		_say(L.t("¡Un %s con una Gachapon Coin! ¡Atrápalo antes de que huya!") % e.enemy_name, 3.2)
@@ -7666,6 +7680,9 @@ func _gain_xp(amount: float) -> void:
 
 
 func _spawn_orb(pos: Vector2, kind: String, value: float):
+	if SV.simple() and SV.SIMPLE_COIN.has(kind):
+		value = float(SV.simple_coins(kind, maxi(1, int(value))))   # Modo sencillo: sin gacha, sus monedas y tickets son Pokemonedas
+		kind = "coin"
 	var o := Orb.new()
 	o.kind = kind
 	o.value = value
@@ -9166,7 +9183,7 @@ func _update_weather(delta: float) -> void:
 		if wx_kind != "" and _wx_level() > 0.5:
 			var wc := Color.html(String(TD.WEATHER[wx_kind]["color"]))
 			if _weather_hurts(player.types) and not _has_item("safetygoggles") and _abn("wximm") == 0.0:
-				var d: float = maxf(1.0, player.max_hp * 0.012)
+				var d: float = maxf(1.0, player.max_hp * 0.012 * (SIMPLE_DMG_TAKEN if SV.simple() else 1.0))
 				if player.hp > d + 1.0:
 					player.hp -= d
 					add_text(player.position + Vector2(0.0, -player.body_h - 4.0), "-" + str(roundi(d)), wc)
@@ -11452,6 +11469,7 @@ class Hud extends Node2D:
 	var balls := 0
 	var tickets := 0
 	var tickets10 := 0
+	var simple := false   # Modo sencillo: sin contadores de tickets
 	var paused := false
 	var show_fps := false
 	var show_stats := false
@@ -12259,23 +12277,24 @@ class Hud extends Node2D:
 		draw_rift_notice(font, vp)
 		draw_thief_notice(font, vp)
 		draw_thieves(font, vp)
-		var tw: float = font.get_string_size(str(tickets), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18).x
-		var t10w: float = font.get_string_size(str(tickets10), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18).x
+		var tw: float = 0.0 if simple else font.get_string_size(str(tickets), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18).x
+		var t10w: float = 0.0 if simple else font.get_string_size(str(tickets10), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18).x
 		var cw: float = font.get_string_size(str(coins), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18).x
 		var blw: float = font.get_string_size("x%d" % balls, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18).x
 		# Panel de contadores: se ensancha con las cifras; la pausa queda a su derecha
 		var pr_right: float = vp.x - 72.0 - ins.z
 		var rx: float = pr_right - 14.0
-		var pw: float = maxf(240.0, 28.0 + t10w + tw + cw + 80.0 + 30.0 + (blw + 40.0 if balls > 0 else 0.0))
+		var pw: float = maxf(200.0 if simple else 240.0, 28.0 + t10w + tw + cw + (0.0 if simple else 80.0) + 30.0 + (blw + 40.0 if balls > 0 else 0.0))
 		var top_r := Rect2(pr_right - pw, 8.0, pw, 60.0)
 		_panel(top_r, PANEL_BG, Color("#dfe9f2"), 2, 16)
 		_ds(font, Vector2(top_r.position.x, 30.0), L.t("Derrotados: %d") % kills, HORIZONTAL_ALIGNMENT_CENTER, pw, 18, Color.WHITE)
-		_ds(font, Vector2(rx - t10w, 58.0), str(tickets10), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18, Color("#c47bff"))
-		IC.draw_in(self, "ticket10", Vector2(rx - t10w - 16.0, 52.0), 24.0)
-		rx -= t10w + 40.0
-		_ds(font, Vector2(rx - tw, 58.0), str(tickets), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18, Color("#ffd23f"))
-		IC.draw_in(self, "ticket", Vector2(rx - tw - 16.0, 52.0), 24.0)
-		rx -= tw + 40.0
+		if not simple:
+			_ds(font, Vector2(rx - t10w, 58.0), str(tickets10), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18, Color("#c47bff"))
+			IC.draw_in(self, "ticket10", Vector2(rx - t10w - 16.0, 52.0), 24.0)
+			rx -= t10w + 40.0
+			_ds(font, Vector2(rx - tw, 58.0), str(tickets), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18, Color("#ffd23f"))
+			IC.draw_in(self, "ticket", Vector2(rx - tw - 16.0, 52.0), 24.0)
+			rx -= tw + 40.0
 		_ds(font, Vector2(rx - cw, 58.0), str(coins), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18, Color("#ffd23f"))
 		IC.draw_in(self, "coin", Vector2(rx - cw - 16.0, 52.0), 24.0)
 		if balls > 0:

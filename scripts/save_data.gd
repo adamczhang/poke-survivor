@@ -198,6 +198,14 @@ static func reset_all() -> void:
 # every Pokemon unlocked (so no personality quiz), no gacha / TM gachapon / missions in the menu,
 # no credit or version label, and every move auto-fires (main.gd _firing_moves()).
 # ---------------------------------------------------------------
+# Modo sencillo: no hay gacha, asi que sus monedas y tickets se pagan en Pokemonedas a este cambio.
+const SIMPLE_COIN := {"ticket": 50, "ticket10": 500, "gcoin": 300, "gcoin_gold": 1000}
+
+
+static func simple_coins(kind: String, n: int) -> int:
+	return int(SIMPLE_COIN.get(kind, 0)) * n
+
+
 static func simple() -> bool:
 	return bool(d["settings"].get("simple_mode", true))
 

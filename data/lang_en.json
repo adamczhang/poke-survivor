@@ -588,6 +588,13 @@
 "Misión completada: {x}": "Mission complete: {x}",
 "Recoge el premio en Misiones": "Claim your reward in Missions",
 "¡Premio recogido!": "Reward collected!",
+"Completados: %d / %d": "Completed: %d / %d",
+"Premio: %d Pokémonedas": "Reward: %d PokéCoins",
+"Retos de 10 minutos como máximo.": "Challenges of 10 minutes at most.",
+"Premio: 300 Pokémonedas; los más difíciles, 1000.": "Reward: 300 PokéCoins; the hardest give 1000.",
+"Cada uno da 300 Pokémonedas la primera vez.": "Each gives 300 PokéCoins the first time.",
+"Uno es de nivel Experto y da 1000 Pokémonedas.": "One is Expert level and gives 1000 PokéCoins.",
+"Aguanta 10 minutos en una partida.": "Survive 10 minutes in a run.",
 "Pon el dedo en cualquier parte y arrástralo para moverte: el joystick aparece donde tocas. Tus movimientos atacan solos. El botón de arriba a la derecha pausa. Juega en horizontal.": "Put your finger anywhere and drag to move: the joystick appears where you touch. Your moves attack on their own. The button at the top right pauses. Play in landscape.",
 "¡Logro: {x}!": "Achievement: {x}!",
 "Nuevo título: {x}": "New title: {x}",
@@ -3578,5 +3585,5 @@
 "Pantallas de Acerca de y Apoyar el proyecto rediseñadas.": "Redesigned About and Support the project screens.",
 "Modo sencillo": "Simple mode",
 "Elegir modo de juego": "Choose game mode",
-"Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos), sin movimientos de mejora, sin logros y un menú más simple, sin gacha. Desactívalo para jugar como el original.": "Every Pokémon unlocked, all your moves attack on their own (each extra move makes them a little slower), no boost moves, no achievements, and a simpler menu with no gacha. Turn it off to play like the original."
+"Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos), sin movimientos de mejora ni logros, recibes la mitad de daño (y 1 segundo a salvo tras cada golpe) y un menú más simple, sin gacha. Desactívalo para jugar como el original.": "Every Pokémon unlocked, all your moves attack on their own (each extra move makes them a little slower), no boost moves or achievements, you take half damage (and are safe for 1 second after each hit), and a simpler menu with no gacha. Turn it off to play like the original."
 }

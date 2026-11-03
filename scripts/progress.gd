@@ -201,6 +201,9 @@ static func done(a: Dictionary) -> bool:
 
 
 static func grant(r: Dictionary) -> void:
+	if SV.simple():
+		SV.d["coins"] = int(SV.d["coins"]) + int(r.get("coins", 0)) + SV.simple_coins("ticket", int(r.get("t1", 0))) + SV.simple_coins("ticket10", int(r.get("t10", 0)))
+		return
 	SV.d["coins"] = int(SV.d["coins"]) + int(r.get("coins", 0))
 	SV.d["tickets"] = int(SV.d["tickets"]) + int(r.get("t1", 0))
 	SV.d["tickets10"] = int(SV.d.get("tickets10", 0)) + int(r.get("t10", 0))
@@ -261,7 +264,10 @@ const ZMIS_COINS := 500
 
 static func zlist() -> Array:
 	var out: Array = []
-	for z in ZMIS:
+	for z0 in ZMIS:
+		var z: Array = z0
+		if SV.simple() and String(z[2]) == "pulls":
+			z = [z[0], "Aguanta 10 minutos en una partida.", "bestMin", 10]   # Modo sencillo: no hay tiradas de gacha
 		out.append({"id": "zc_" + String(z[0]), "type": String(z[0]), "desc": String(z[1]), "stat": String(z[2]), "goal": int(z[3])})
 	return out
 

@@ -8304,7 +8304,7 @@ func _set_controls() -> void:
 		_refresh_settings()))
 	_srow("Joystick fijo", "El joystick se queda siempre abajo a la izquierda en vez de aparecer donde tocas.", _toggle_set("stick_fixed"))
 	if not is_overlay:   # en partida recargaba la escena y se perdia la run
-		_srow("Modo sencillo", "Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos), sin movimientos de mejora ni logros, recibes la mitad de daño (y 1 segundo a salvo tras cada golpe) y un menú más simple, sin gacha. Desactívalo para jugar como el original.", _yesno(SV.simple(), func(v: bool):
+		_srow("Modo sencillo", "Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos) y ninguno te mueve de sitio, sin movimientos de mejora ni logros, recibes la mitad de daño (y 1 segundo a salvo tras cada golpe) y un menú más simple, sin gacha. Desactívalo para jugar como el original.", _yesno(SV.simple(), func(v: bool):
 			SV.d["settings"]["simple_mode"] = v
 			if v:
 				SV.unlock_all()

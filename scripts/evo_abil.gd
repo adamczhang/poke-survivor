@@ -328,7 +328,8 @@ func a_blink(m: Dictionary, p: Dictionary) -> void:
 	var e = ts[0]
 	var dir: Vector2 = (e.position - _p()).normalized()
 	M._ring(_p(), 4.0, 40.0, M._col(m), 0.25)
-	M.player.position = e.position - dir * 26.0
+	if not M._moves_stay_put():
+		M.player.position = e.position - dir * 26.0
 	M.player.invuln = maxf(M.player.invuln, 0.35)
 	M._p_hit_circle(e.position, 80.0, m, float(p.get("k", 2.0)))
 	_puff(e.position, m, 16)

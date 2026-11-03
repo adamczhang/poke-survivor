@@ -1970,11 +1970,27 @@ func _evo_infos(m: Dictionary) -> Array:
 			"ready": true, "alt": false})
 		if EVO_TEXT.has(id):
 			out[-1]["text"] = L.t(String(EVO_TEXT[id]))
+		out[-1]["text"] = _simple_up_text(m, -1, String(out[-1]["text"]))
 	if MD.EVO_ALT.has(id):
 		var a: Array = MD.EVO_ALT[id]
 		var n2: String = String(a[1])
 		out.append({"name": String(a[0]), "needs": n2, "need_name": String(MD.NEED_NAME[n2]), "text": String(a[2]), "ready": true, "alt": true})
 	return out
+
+
+# Modo sencillo: texto de las mejoras de los movimientos con patron propio, para que diga lo que hacen de verdad
+# (step = indice de la escalera de mejoras, -1 = evolucion).
+const SIMPLE_UP_TEXT := {
+	"pulsewave": {0: "+1 onda", 3: "+1 onda", -1: "+1 onda y ×1,6 daño"},
+	"splitorb": {3: "+1 proyectil", -1: "×1,8 daño, +2 orbes y más grandes"},
+}
+
+
+func _simple_up_text(m: Dictionary, step: int, t: String) -> String:
+	if not SV.simple():
+		return t
+	var tbl: Dictionary = SIMPLE_UP_TEXT.get(String(m.get("pat", "")), {})
+	return String(tbl.get(step, t))
 
 
 func _evolve(m: Dictionary, alt: bool = false) -> void:
@@ -2960,9 +2976,10 @@ func _p_dash_path(m: Dictionary, pts: Array, w: float, k: float, drag: float = 0
 				_hit_move(e, _pk(m, k), Vector2.from_angle(ang), m)
 				if drag > 0.0 and not e.boss:
 					e.position += Vector2.from_angle(ang) * drag
-	player.position = pts[pts.size() - 1]
+	if not _moves_stay_put():
+		player.position = pts[pts.size() - 1]
 	player.invuln = maxf(player.invuln, _f(m, "iframes", 0.3))
-	pfx.slash(player.position + Vector2(0.0, -LIFT * 0.5), (pts[pts.size() - 1] - pts[pts.size() - 2]).angle(), 34.0, 2.2, vis)
+	pfx.slash(pts[pts.size() - 1] + Vector2(0.0, -LIFT * 0.5), (pts[pts.size() - 1] - pts[pts.size() - 2]).angle(), 34.0, 2.2, vis)
 	shake = maxf(shake, 3.0)
 
 
@@ -3053,16 +3070,22 @@ func _pat(p: String, m: Dictionary) -> void:
 	var arc: float = _f(m, "arc", 1.6)
 	match p:
 		"splitorb":   # Bola Voltio: orbe lento que al chocar se parte en chispas
-			var b: Bullet = _p_bullet(m, aim, _f(m, "speed"), _f(m, "life", 1.6), 0, _f(m, "size", 11.0))
-			b.burst = 5
+			# Modo sencillo: las mejoras de "+1 proyectil" lanzan orbes de verdad (antes no hacian nada)
+			var nb: int = maxi(1, int(_f(m, "count", 1.0))) if SV.simple() else 1
+			for i in range(nb):
+				var off: float = (float(i) / float(nb - 1) - 0.5) * _f(m, "spread", 0.12) * float(nb) if nb > 1 else 0.0
+				var b: Bullet = _p_bullet(m, aim + off, _f(m, "speed"), _f(m, "life", 1.6), 0, _f(m, "size", 11.0))
+				b.burst = 5
 		"ringmines":   # Electrotela: anillo de 6 minas alrededor
-			for i in range(6):
-				var a: float = aim + float(i) / 6.0 * TAU
+			# Modo sencillo: cada "+1 mina" anade una mina al anillo (antes siempre eran 6)
+			var nmn: int = 6 + maxi(0, int(_f(m, "count", 2.0)) - 2) if SV.simple() else 6
+			for i in range(nmn):
+				var a: float = aim + float(i) / float(nmn) * TAU
 				var f: Field = _new_field("mine", m, pos + Vector2(cos(a) * 72.0, sin(a) * 58.0))
 				f.arm = 0.35
 				f.life = _f(m, "dur", 7.0)
 				f.r = rad
-			_trim_fields("mine", 14)
+			_trim_fields("mine", maxi(14, nmn * 2 + 2))
 			_ring(pos, 10.0, 80.0, col, 0.35)
 		"zigzag":   # Pico Trueno: embestida en zigzag
 			var p1: Vector2 = pos + Vector2.from_angle(aim + 0.7) * rad * 0.5
@@ -3073,7 +3096,9 @@ func _pat(p: String, m: Dictionary) -> void:
 				_later(0.05 + 0.22 * float(i), func(): _p_warn(player.position, aim, rad, m))
 			_later(0.75, func(): _p_beam(m, aim, rad, _f(m, "width", 36.0), 1.0))
 		"pulsewave":   # Onda Trueno: tres ondas expansivas seguidas
-			for i in range(3):
+			# Modo sencillo: cada "+4 proyectiles" es una onda mas (3 > 4 > 5, evolucionada 6); antes no hacian nada
+			var nw: int = 3 + maxi(0, int((_f(m, "count", 8.0) - 8.0) / 4.0)) if SV.simple() else 3
+			for i in range(nw):
 				_later(0.22 * float(i), func(): _p_wave(m, 8.0, rad, 0.42, 14.0, 1.0))
 		"volley":   # Dracoflechas: dardos secuenciales a blancos distintos
 			var n: int = maxi(2, int(_f(m, "count", 4.0)))
@@ -3125,7 +3150,8 @@ func _pat(p: String, m: Dictionary) -> void:
 			var dest: Vector2 = pos + d * rad
 			for q in range(0, int(rad) + 1, 26):
 				pfx.sp("kick", String(vis["pal"]), pos + d * float(q) + Vector2(0.0, -LIFT - 14.0 * sin(PI * float(q) / maxf(rad, 1.0))), {"life": 0.3, "angle": aim})
-			player.position = dest
+			if not _moves_stay_put():
+				player.position = dest
 			player.invuln = maxf(player.invuln, 0.6)
 			_later(0.25, func():
 				_p_hit_circle(dest, 62.0, m, 1.0)
@@ -3322,7 +3348,8 @@ func _pat(p: String, m: Dictionary) -> void:
 				var behind: Vector2 = en2.position + (en2.position - pos).normalized() * 36.0
 				for q in range(0, 5):
 					pfx.sp("fist", String(vis["pal"]), pos.lerp(behind, float(q) / 4.0) + Vector2(0.0, -LIFT), {"life": 0.25, "alpha": 0.6})
-				player.position = behind
+				if not _moves_stay_put():
+					player.position = behind
 				player.invuln = maxf(player.invuln, 0.5)
 				_p_hit_circle(behind, 56.0, m, 1.0)
 				shake = maxf(shake, 3.0)
@@ -3741,7 +3768,8 @@ func _dash(m: Dictionary) -> void:
 	for s in range(0, int(ln) + 1, 22):
 		pfx.sp(String(dv.get("proj", "streak")), String(dv["pal"]), start + d * float(s) + Vector2(0.0, -LIFT * 0.6), {"life": 0.22, "angle": player.aim})
 	pfx.slash(dest + Vector2(0.0, -LIFT * 0.5), player.aim, 34.0, 2.2, dv)
-	player.position = dest
+	if not _moves_stay_put():
+		player.position = dest
 	player.invuln = maxf(player.invuln, _f(m, "iframes", 0.3))
 	for e in enemies:
 		if e.dead:
@@ -7935,7 +7963,7 @@ func _offer() -> Array:
 			continue
 		var ladder: Array = MD.LADDERS[String(m["kind"])]
 		pool.append({"cat": "up", "id": String(m["id"]), "key": "up:" + String(m["id"]), "w": 8.0,
-			"title": String(m["name"]), "icon": "move:" + String(m["id"]), "desc": String(ladder[int(m["lvl"]) - 1]["t"]),
+			"title": String(m["name"]), "icon": "move:" + String(m["id"]), "desc": _simple_up_text(m, int(m["lvl"]) - 1, String(ladder[int(m["lvl"]) - 1]["t"])),
 			"tag": L.t("Nv.%d > %d") % [int(m["lvl"]), int(m["lvl"]) + 1], "color": _col(m)})
 
 	# --- estadisticas (las que desbloquean una evolucion salen siempre) ---
@@ -8095,6 +8123,12 @@ func _active_group() -> Array:
 # Fork SIMPLE MODE (default): every move attacks on its own, like other survivor games,
 # instead of only the active slot. Simple Mode off = the original one-active-move behaviour.
 func _autofire_all() -> bool:
+	return SV.simple()
+
+
+# Fork SIMPLE MODE: attacks never move the hero. Dashes, leaps and teleport strikes still hit the same
+# line or spot at their full range, but the hero stays put (auto-firing them made the camera jump).
+func _moves_stay_put() -> bool:
 	return SV.simple()
 
 

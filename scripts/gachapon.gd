@@ -27,8 +27,8 @@ static func def_of(id: String) -> Dictionary:
 
 # Un movimiento de la maquina solo se puede usar (cartas, inicial, MT) si ya esta desbloqueado.
 static func playable(id: String) -> bool:
-	if def_of(id).is_empty():
-		return true
+	if def_of(id).is_empty() or SV.simple():
+		return true   # Modo sencillo: no hay gachapon, asi que todos sus movimientos estan disponibles
 	return is_unlocked(id)
 
 

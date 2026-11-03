@@ -206,13 +206,26 @@ static func simple() -> bool:
 static func unlock_all() -> void:
 	load_dex()
 	var added := 0
+	var before: Dictionary = (d["owned"] as Dictionary).duplicate(true)
 	for p in dex_list:
 		var key := str(int(p["dex"]))
 		if not d["owned"].has(key):
 			d["owned"][key] = {"n": 1, "shiny": false}
 			added += 1
 	if added > 0:
+		if not d.has("owned_real"):
+			d["owned_real"] = before   # la coleccion de verdad, para devolverla si se apaga el Modo sencillo
 		save()
+
+
+# Al apagar el Modo sencillo vuelve la coleccion que tenias antes de que lo desbloqueara todo.
+static func restore_owned() -> void:
+	if not d.has("owned_real"):
+		return
+	d["owned"] = d["owned_real"]
+	d.erase("owned_real")
+	if not d["owned"].has(str(int(d.get("selected", 25)))) and not d["owned"].is_empty():
+		d["selected"] = int(String(d["owned"].keys()[0]))
 
 
 # Guardados antiguos solo tenian el interruptor "shake".

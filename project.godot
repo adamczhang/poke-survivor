@@ -23,6 +23,7 @@ config/icon="res://icon.png"
 [autoload]
 
 TouchScroll="*res://scripts/touch_scroll.gd"
+TestHooks="*res://scripts/test_hooks.gd"
 
 [display]
 

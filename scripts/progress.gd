@@ -213,6 +213,9 @@ static func check() -> Array:
 	var got: Array = []
 	if off:
 		return got
+	if SV.simple():
+		zcheck()   # Modo sencillo: sin logros (ni avisos ni premios); los cristales Z siguen, son parte del juego
+		return got
 	if not SV.d.has("ach"):
 		SV.d["ach"] = {}
 	var ach: Dictionary = SV.d["ach"]
@@ -565,8 +568,16 @@ static func _advance(lst: Array, kind: String, d: Dictionary) -> void:
 			m["prog"] = int(m["prog"]) + v
 		if m_done(m) and not bool(m["told"]):
 			m["told"] = true
-			toasts.append({"title": "Misión completada: %s", "arg": mission_text(m), "sub": "Recoge el premio en Misiones", "subarg": "", "tier": 2, "dex": 0})
+			toasts.append({"title": "Misión completada: %s", "arg": mission_text(m), "sub": "¡Premio recogido!" if SV.simple() else "Recoge el premio en Misiones", "subarg": "", "tier": 2, "dex": 0})
 			SV.save()
+
+
+# Modo sencillo: no hay pantalla de Misiones en el menu, asi que el premio se cobra solo al completarla.
+static func _auto_claim(M: Dictionary) -> void:
+	for wk in [false, true]:
+		for m in (M["weekly"] if wk else M["daily"]):
+			if not bool(m["claimed"]) and m_done(m):
+				claim(m, wk)
 
 
 static func claim(m: Dictionary, weekly: bool) -> bool:
@@ -634,6 +645,8 @@ static func event(kind: String, d: Dictionary = {}) -> void:
 	var M: Dictionary = SV.d["missions"]
 	_advance(M["daily"], kind, d)
 	_advance(M["weekly"], kind, d)
+	if SV.simple():
+		_auto_claim(M)
 	if kind != "kill" or bool(d.get("boss", false)) or int(d.get("legend", 0)) > 0:
 		check()
 	elif Time.get_ticks_msec() / 1000.0 - ach_t > 1.0:

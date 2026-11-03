@@ -2080,6 +2080,7 @@ func _menu_pick(key: String) -> void:
 		goals_tab = "m"
 	if key == "play":
 		if SV.simple():
+			SV.run_mods = []   # sin modificadores ocultos: los del menu de modos solo valen para partidas lanzadas desde alli
 			_start_mode(String(MODE_LIST[0][0]))   # Simple Mode: Play = Normal run (the gear opens the mode list)
 			return
 		_open_modes()
@@ -2124,7 +2125,7 @@ const MOD_INFO := {
 }
 # id, nombre, icono, grupo, reglas
 const MODE_LIST := [
-	["normal", "Partida normal", "flag", "Clásicos", ["Sobrevive mientras llegan enemigos sin parar.", "Sube de nivel y elige movimientos y objetos.", "Vence a los jefes que aparecen cada pocos minutos.", "Al terminar ganas Pokémonedas y, a veces, tickets.", "Dura 60 minutos: Arceus llega en el minuto 30 y Eternatus en el 60."]],
+	["normal", "Partida normal", "flag", "Clásicos", ["Sobrevive mientras llegan enemigos sin parar.", "Sube de nivel y elige movimientos y objetos.", "Vence a los jefes que aparecen cada pocos minutos.", "Al terminar ganas Pokémonedas y, a veces, tickets.", "En el minuto 30 llega la Sentencia de Arceus: aguanta todo lo que puedas."]],
 	["daily", "Desafío diario", "m_daily", "Clásicos", ["El Pokémon y la regla de hoy cambian cada día y son iguales para todos.", "Intenta mejorar tu mejor tiempo del día.", "+25% de monedas."]],
 	["rush", "Rush de Jefes", "m_rush", "Clásicos", ["Solo jefes y legendarios, uno tras otro.", "Cada jefe es más fuerte que el anterior.", "Tu récord cuenta cuántos jefes derrotas."]],
 	["tower", "La torre", "m_tower", "Clásicos", ["60 pisos, cada uno con un jefe fijo y un jefe grande cada 5.", "Entre pisos eliges descanso o pactos de riesgo.", "Cada 5 pisos ganas una reliquia permanente.", "No hay movimientos Z ni Dynamax."]],
@@ -3458,7 +3459,7 @@ func _bd_nums(bd: String) -> Array:
 		out.append(int(part.get_slice(" ", part.get_slice_count(" ") - 1).replace("+", "")))
 	while out.size() < 3:
 		out.append(0)
-	return out
+	return out.slice(0, 3)   # los modos que no son Normal anaden " · <modo>" al final: solo cuentan los tres primeros
 
 
 # ---------------------------------------------------------------
@@ -6769,7 +6770,8 @@ func _goals_profile() -> Button:
 	mv.add_child(mg)
 	for ty1 in TYPE_IDS:
 		mg.add_child(_medal_icon(String(ty1), 46))
-	mv.add_child(_btn("Ver todas las medallas", func(): goals_tab = "h"; _show("goals"), Vector2(0, 40)))
+	if not SV.simple():   # Modo sencillo: sin logros ni pantalla de Misiones
+		mv.add_child(_btn("Ver todas las medallas", func(): goals_tab = "h"; _show("goals"), Vector2(0, 40)))
 	# ---- Tu Pokemon (derecha) ----
 	var rw := 300.0
 	var rbox := Control.new()
@@ -7069,7 +7071,8 @@ func _show_card() -> void:
 	g.add_child(_stat_cell(L.t("Jefes"), str(int(st.get("bosses", 0)))))
 	g.add_child(_stat_cell(L.t("Cofres"), str(int(st.get("chests", 0)))))
 	g.add_child(_stat_cell(L.t("Pokémon"), "%d / %d" % [SV.owned_count(), SV.dex_list.size()]))
-	g.add_child(_stat_cell(L.t("Logros"), "%d / %d" % [SV.d.get("ach", {}).size(), PG.list().size()]))
+	if not SV.simple():
+		g.add_child(_stat_cell(L.t("Logros"), "%d / %d" % [SV.d.get("ach", {}).size(), PG.list().size()]))
 	var tm: int = int(st.get("total_time", 0))
 	g.add_child(_stat_cell(L.t("Tiempo jugado"), "%dh %02dm" % [tm / 3600, (tm % 3600) / 60]))
 	var ok := _btn_close("Cerrar", func(): gacha_result.visible = false; _refresh_goals(), Vector2(220, 52))
@@ -8263,7 +8266,10 @@ func _set_graphics() -> void:
 
 func _set_controls() -> void:
 	_sec("En móvil o tableta")
-	settings_box.add_child(_label("Pon el dedo en cualquier parte y arrástralo para moverte: el joystick aparece donde tocas. Toca un movimiento abajo para cambiar a él y el botón de arriba a la derecha para pausar. Juega en horizontal.", 20, Color("#c8d6ee")))
+	if SV.simple():
+		settings_box.add_child(_label("Pon el dedo en cualquier parte y arrástralo para moverte: el joystick aparece donde tocas. Tus movimientos atacan solos. El botón de arriba a la derecha pausa. Juega en horizontal.", 20, Color("#c8d6ee")))
+	else:
+		settings_box.add_child(_label("Pon el dedo en cualquier parte y arrástralo para moverte: el joystick aparece donde tocas. Toca un movimiento abajo para cambiar a él y el botón de arriba a la derecha para pausar. Juega en horizontal.", 20, Color("#c8d6ee")))
 	_srow("Lado del botón de acción", "Dónde aparece el botón dorado de acción (recoger, comerciar, lanzar Poké Ball…), a media altura.", _seg(["Derecha", "Izquierda"], clampi(int(SV.d["settings"].get("act_side", 0)), 0, 1), func(i: int):
 		SV.d["settings"]["act_side"] = i
 		SV.save()
@@ -8273,13 +8279,16 @@ func _set_controls() -> void:
 		SV.save()
 		_refresh_settings()))
 	_srow("Joystick fijo", "El joystick se queda siempre abajo a la izquierda en vez de aparecer donde tocas.", _toggle_set("stick_fixed"))
-	_srow("Modo sencillo", "Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos), sin movimientos de mejora y un menú más simple, sin gacha. Desactívalo para jugar como el original.", _yesno(SV.simple(), func(v: bool):
-		SV.d["settings"]["simple_mode"] = v
-		if v:
-			SV.unlock_all()
-		SV.save()
-		SV.reopen = "settings"
-		get_tree().reload_current_scene()))
+	if not is_overlay:   # en partida recargaba la escena y se perdia la run
+		_srow("Modo sencillo", "Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos), sin movimientos de mejora, sin logros y un menú más simple, sin gacha. Desactívalo para jugar como el original.", _yesno(SV.simple(), func(v: bool):
+			SV.d["settings"]["simple_mode"] = v
+			if v:
+				SV.unlock_all()
+			else:
+				SV.restore_owned()
+			SV.save()
+			SV.reopen = "settings"
+			get_tree().reload_current_scene()))
 	_srow("Apuntado manual", "Apunta tú mismo: stick derecho del mando, el ratón o un segundo dedo arrastrando en la mitad derecha de la pantalla. Si no apuntas, el juego apunta solo.", _toggle_set("manual_aim"))
 	_sec("Mando")
 	settings_box.add_child(_label("Stick izquierdo o cruceta: moverte y navegar por los menús. Pulsa un botón de la lista y luego el botón del mando que quieras asignarle.", 20, Color("#c8d6ee")))

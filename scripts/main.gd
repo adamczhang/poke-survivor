@@ -1221,7 +1221,7 @@ func _process(delta: float) -> void:
 			push_warning("S59 watchdog: choosing sin cartas visibles; liberado (%d)" % unfreeze_count)
 	else:
 		choose_idle = 0.0
-	if not player.dead and Engine.time_scale != 1.0:
+	if not player.dead and Engine.time_scale != 1.0 and not Engine.has_meta("test_speed"):   # test_speed: solo lo pone scripts/test_hooks.gd
 		Engine.time_scale = 1.0
 		unfreeze_count += 1
 		push_warning("S59 watchdog: time_scale restaurado (%d)" % unfreeze_count)
@@ -2000,6 +2000,8 @@ func _evolve(m: Dictionary, alt: bool = false) -> void:
 
 
 func _set_active(i: int) -> void:
+	if _autofire_all():
+		return   # Modo sencillo: todos los movimientos disparan solos; cambiar de hueco solo servia para saltarse los tiempos de recarga
 	var sl: Array = _slot_list()
 	if i < 0 or i >= sl.size() or i == player.slot:
 		return
@@ -2433,8 +2435,9 @@ func _hurt_player(amount: float, atk_type: String = "", pure: bool = false) -> v
 		if nxt >= 0:
 			_swap_team(nxt, true)
 			return
-	if player.hp <= 0.0 and arena != null and String(ainfo.get("phase", "")) != "fight":
-		# Fuera de la pelea (intro, caida, expulsion, victoria): nunca hay Game Over dentro de una grieta
+	if player.hp <= 0.0 and arena != null and String(ainfo.get("phase", "")) != "fight" and jd.phase != "fight":
+		# Fuera de la pelea (intro, caida, expulsion, victoria): nunca hay Game Over dentro de una grieta.
+		# La Sentencia (ainfo.phase "jd") si acaba la partida al caer: antes te dejaba a 1 PS para siempre y no terminaba nunca.
 		if String(ainfo.get("phase", "")) != "down":
 			player.hp = 1.0
 			player.invuln = maxf(player.invuln, 2.0)

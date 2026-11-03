@@ -587,6 +587,8 @@
 "¡Premio recogido!": "Reward claimed!",
 "Misión completada: {x}": "Mission complete: {x}",
 "Recoge el premio en Misiones": "Claim your reward in Missions",
+"¡Premio recogido!": "Reward collected!",
+"Pon el dedo en cualquier parte y arrástralo para moverte: el joystick aparece donde tocas. Tus movimientos atacan solos. El botón de arriba a la derecha pausa. Juega en horizontal.": "Put your finger anywhere and drag to move: the joystick appears where you touch. Your moves attack on their own. The button at the top right pauses. Play in landscape.",
 "¡Logro: {x}!": "Achievement: {x}!",
 "Nuevo título: {x}": "New title: {x}",
 "¡Conseguido!": "Unlocked!",
@@ -3300,7 +3302,7 @@
 "Arreglo: los cofres grandes muestran una barra de progreso clara al abrirse.": "Fix: big chests now show a clear progress bar while opening.",
 "60 pisos, cada uno con un jefe fijo y un jefe grande cada 5.": "60 floors, each with a fixed boss and a big boss every 5.",
 "Mejor piso: %d · Reliquias: %d / %d": "Best floor: %d · Relics: %d / %d",
-"Dura 60 minutos: Arceus llega en el minuto 30 y Eternatus en el 60.": "Lasts 60 minutes: Arceus arrives at minute 30 and Eternatus at 60.",
+"En el minuto 30 llega la Sentencia de Arceus: aguanta todo lo que puedas.": "At minute 30 the Judgment of Arceus arrives: hold out as long as you can.",
 "Llega al piso 30 de la Torre.": "Reach floor 30 of the Tower.",
 "Derrota a Arceus, el jefe final del piso 60 de la Torre.": "Defeat Arceus, the final boss on floor 60 of the Tower.",
 "Cima de la Torre": "Top of the Tower",
@@ -3576,5 +3578,5 @@
 "Pantallas de Acerca de y Apoyar el proyecto rediseñadas.": "Redesigned About and Support the project screens.",
 "Modo sencillo": "Simple mode",
 "Elegir modo de juego": "Choose game mode",
-"Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos), sin movimientos de mejora y un menú más simple, sin gacha. Desactívalo para jugar como el original.": "Every Pokémon unlocked, all your moves attack on their own (each extra move makes them a little slower), no boost moves, and a simpler menu with no gacha. Turn it off to play like the original."
+"Todos los Pokémon desbloqueados, todos tus movimientos atacan solos (cada movimiento extra los hace un poco más lentos), sin movimientos de mejora, sin logros y un menú más simple, sin gacha. Desactívalo para jugar como el original.": "Every Pokémon unlocked, all your moves attack on their own (each extra move makes them a little slower), no boost moves, no achievements, and a simpler menu with no gacha. Turn it off to play like the original."
 }

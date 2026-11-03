@@ -1,0 +1,10 @@
+{
+  "name": "fin-fur-pokesurvivor",
+  "account_id": "091066f81900ce71ff4763e0260afe3f",
+  "compatibility_date": "2026-05-15",
+  "assets": {
+    "directory": "./dist"
+  },
+  "workers_dev": false,
+  "preview_urls": false
+}

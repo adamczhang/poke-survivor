@@ -799,13 +799,15 @@ func _ready() -> void:
 		world.z_index = -4000   # el fondo siempre queda detras de toda la interfaz
 		add_child(world)
 		world.start()
-		var upd := UPD.new()
-		add_child(upd)
-		upd.found.connect(func(info: Dictionary):
-			var pop := UPD.UpdatePopup.new()
-			add_child(pop)
-			pop.build(info))
-		upd.start()
+		# Web port: the site always serves the latest build, so there is no APK update check.
+		if not DSP.is_web():
+			var upd := UPD.new()
+			add_child(upd)
+			upd.found.connect(func(info: Dictionary):
+				var pop := UPD.UpdatePopup.new()
+				add_child(pop)
+				pop.build(info))
+			upd.start()
 	shade = ColorRect.new()
 	shade.color = Color(0, 0.05, 0.1, 0.30)
 	shade.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -1479,6 +1481,9 @@ func _go_back() -> void:
 		_leave()
 		return
 	if cur == "main":
+		# Web port: quitting would leave a frozen page, so "back" on the main menu does nothing.
+		if DSP.is_web():
+			return
 		if Time.get_ticks_msec() / 1000.0 - back_t < 2.0:
 			get_tree().quit()
 		else:
@@ -8209,6 +8214,7 @@ func _set_graphics() -> void:
 		_srow("Modo de ventana", "Ventana o pantalla completa (solo en PC).", _seg(["Ventana", "Pantalla completa"], DSP.win_mode(), func(i: int):
 			DSP.set_window(i, DSP.win_res())
 			_refresh_settings()))
+	if DSP.is_desktop() and not DSP.is_web():
 		var res_names: Array = []
 		for rv in DSP.WIN_RES:
 			res_names.append("%d×%d" % [rv.x, rv.y])
@@ -8361,7 +8367,7 @@ func _set_about() -> void:
 	hr.add_child(by)
 	var pill := PanelContainer.new()
 	pill.add_theme_stylebox_override("panel", _nsb(Color("#101a30"), Color("#9cc8ff"), 2, 10))
-	var ver := _label(L.t("Versión") + " " + UPD.APP_VERSION + " · Android", 18)
+	var ver := _label(L.t("Versión") + " " + UPD.APP_VERSION + (" · Web" if DSP.is_web() else " · Android"), 18)
 	ver.autowrap_mode = TextServer.AUTOWRAP_OFF
 	pill.add_child(ver)
 	hr.add_child(pill)

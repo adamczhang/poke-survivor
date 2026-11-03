@@ -213,6 +213,10 @@ var prop_imgs := {}
 var prop_texs := {}
 var liquid_tiles: Array = []
 var _thread: Thread = null
+# Web port: the single-threaded web build cannot bake on a Thread, so it bakes in slices across frames.
+var _baking := false
+var _bake_abort := false
+const SLICE_USEC := 6000
 
 
 static func pk(c: Color) -> int:
@@ -261,11 +265,26 @@ class Pix extends RefCounted:
 
 
 func start_bake() -> void:
+	if OS.has_feature("web"):
+		_bake_sliced()
+		return
 	_thread = Thread.new()
 	_thread.start(bake)
 
 
+func _bake_sliced() -> void:
+	_baking = true
+	_bake_abort = false
+	await bake(true)
+	_baking = false
+
+
 func finish_bake() -> void:
+	# Web: if the sliced bake has not finished yet, stop it and finish synchronously.
+	if _baking:
+		_bake_abort = true
+		_baking = false
+		baked_img = null
 	if _thread != null:
 		if _thread.is_started():
 			_thread.wait_to_finish()
@@ -279,6 +298,7 @@ func finish_bake() -> void:
 
 
 func dispose() -> void:
+	_bake_abort = true
 	if _thread != null and _thread.is_started():
 		_thread.wait_to_finish()
 	_thread = null
@@ -298,7 +318,11 @@ func _at(tx: int, ty: int) -> int:
 	return WALL if t == VOID else t
 
 
-func bake() -> void:
+# step=true (web only) yields to the next frame every SLICE_USEC so the game keeps running.
+# With step=false it never awaits, so it still runs synchronously (and on a Thread) as before.
+func bake(step: bool = false) -> void:
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	var t0: int = Time.get_ticks_usec()
 	var span: int = int(r) + OUTER
 	var n: int = span * 2 + 1
 	var W: int = n * T
@@ -327,6 +351,11 @@ func bake() -> void:
 	for j in range(gw):
 		for i in range(gw):
 			grid[j * gw + i] = fbm(float(org + (i - 1) * S) / FS, float(org + (j - 1) * S) / FS, seed_v + 303)
+		if step and Time.get_ticks_usec() - t0 > SLICE_USEC:
+			await tree.process_frame
+			if _bake_abort:
+				return
+			t0 = Time.get_ticks_usec()
 	var mask := PackedByteArray()
 	mask.resize(W * (W + 1))
 	for y in range(-1, W):
@@ -344,6 +373,11 @@ func bake() -> void:
 			var val: float = (a + (b - a) * u) * (1.0 - v) + (c + (d - c) * u) * v
 			val += (hsh((org + x) >> 1, (org + y) >> 1, seed_v + 9) - 0.5) * 0.05
 			mask[(y + 1) * W + x] = 1 if val > 0.64 else 0
+		if step and Time.get_ticks_usec() - t0 > SLICE_USEC:
+			await tree.process_frame
+			if _bake_abort:
+				return
+			t0 = Time.get_ticks_usec()
 	liquid_tiles.clear()
 	for j in range(n):
 		for i in range(n):
@@ -358,6 +392,11 @@ func bake() -> void:
 			elif kind == LIQUID:
 				_paint_liquid(P, C, i * T, j * T, tx, ty)
 				liquid_tiles.append(Vector2i(tx, ty))
+			if step and Time.get_ticks_usec() - t0 > SLICE_USEC:
+				await tree.process_frame
+				if _bake_abort:
+					return
+				t0 = Time.get_ticks_usec()
 	baked_img = P.img()
 	_bake_props()
 

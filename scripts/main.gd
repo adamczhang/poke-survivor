@@ -29,6 +29,7 @@ const L = preload("res://scripts/lang.gd")
 const IC = preload("res://scripts/icons.gd")
 const PXF = preload("res://scripts/pxfont.gd")
 const DSP = preload("res://scripts/display.gd")
+const CPT = preload("res://scripts/click_path.gd")
 const PAD = preload("res://scripts/pad.gd")
 const PADI = preload("res://scripts/padicons.gd")
 const ARENA = preload("res://scripts/arena.gd")
@@ -2074,13 +2075,18 @@ func _update_player(delta: float) -> void:
 		spd *= 0.5
 	if click_dest != Vector2.INF:
 		if moving or player.position.distance_to(click_last) > 96.0:   # took over the controls, or teleported (rift, cave, Z-move)
-			click_dest = Vector2.INF
-			click_held = false
-		elif player.position.distance_to(click_dest) <= maxf(6.0, spd * delta):
-			click_dest = Vector2.INF
+			_click_stop()
 		else:
-			v = (click_dest - player.position).normalized()
-			moving = true
+			while not click_path.is_empty() and player.position.distance_to(click_path[0]) <= maxf(6.0, spd * delta):
+				click_path.pop_front()
+			if click_path.is_empty() and click_partial and click_replans < CLICK_REPLANS:
+				click_replans += 1
+				_click_route()
+			if click_path.is_empty():
+				click_dest = Vector2.INF
+			else:
+				v = (click_path[0] - player.position).normalized()
+				moving = true
 	if trap_conf_t > 0.0:
 		v = -v
 	var old_pos: Vector2 = player.position
@@ -2088,11 +2094,15 @@ func _update_player(delta: float) -> void:
 	player.position = _collide(player.position, player.radius * 0.55)
 	if click_dest != Vector2.INF:
 		click_last = player.position
-		# blocked by a wall or cliff: stop instead of walking on the spot (a root or freeze just waits)
+		# bumped into something: look for a new route, then stop instead of walking on the spot (a root or freeze just waits)
 		var blocked: bool = spd > 1.0 and trap_conf_t <= 0.0 and old_pos.distance_to(player.position) < spd * delta * 0.3
 		click_stuck = click_stuck + delta if blocked else 0.0
-		if click_stuck >= CLICK_MOVE_STUCK and not click_held:
-			click_dest = Vector2.INF
+		if click_stuck >= CLICK_MOVE_STUCK:
+			if click_replans < CLICK_REPLANS:
+				click_replans += 1
+				_click_route()
+			elif not click_held:
+				_click_stop()
 	player_vel = (player.position - old_pos) / maxf(delta, 0.0001)
 	player.invuln = maxf(0.0, player.invuln - delta)
 	simple_hit_lock = maxf(0.0, simple_hit_lock - delta)
@@ -8152,8 +8162,17 @@ func _autofire_all() -> bool:
 
 # Fork SIMPLE MODE: click the ground with the mouse and the hero walks there (no holding and dragging).
 # Fingers keep the joystick. Keyboard, joystick and pad cancel the walk as soon as they are used.
-const CLICK_MOVE_STUCK := 0.35   # seconds pressed against a wall before giving up on the walk
+# The route goes around obstacles and harmful floors (scripts/click_path.gd).
+const CLICK_MOVE_STUCK := 0.35   # seconds pressed against something before looking for a new route
+const CLICK_REPLANS := 3         # new routes to try before giving up (props can appear as chunks load)
+const CLICK_DRAG_EVERY := 0.2    # holding the button: new route at most this often
 var click_dest := Vector2.INF
+var click_path: Array = []       # waypoints still to walk; the last one is click_dest
+var click_goal := Vector2.INF    # the spot that was clicked
+var click_replans := 0
+var click_partial := false       # the route search ran out of time: search again from the end of this stretch
+var click_pending := Vector2.INF # screen spot waiting for the next route while holding the button
+var click_drag_t := 0.0
 var team_ui: TeamUi = null
 var click_held := false          # holding the button keeps steering the walk toward the cursor
 var click_stuck := 0.0
@@ -8186,10 +8205,44 @@ func _click_on_button(p: Vector2) -> bool:
 	return false
 
 
-func _click_set(p: Vector2) -> void:
-	click_dest = get_canvas_transform().affine_inverse() * p
+func _click_free(p: Vector2) -> bool:
+	if _collide(p, player.radius * 0.55 + 1.0) != p:
+		return false
+	# harmful floors get a margin wider than the route's check spacing, so a straight stretch can't clip a corner
+	for q in [p + Vector2(-8.0, -8.0), p + Vector2(8.0, -8.0), p + Vector2(-8.0, 8.0), p + Vector2(8.0, 8.0)]:
+		match _liquid_at(q):
+			"lava":
+				if not _has_t(player.types, ["fire", "flying"]):
+					return false
+			"poison":
+				if not _has_t(player.types, ["poison", "steel", "flying"]):
+					return false
+			"spark":
+				if not _has_t(player.types, ["electric", "ground", "flying"]):
+					return false
+	return true
+
+
+func _click_route() -> void:
+	click_path = CPT.find(player.position, click_goal, _click_free)
+	click_partial = CPT.last_partial
+	click_dest = Vector2.INF if click_path.is_empty() else click_path[-1]
 	click_last = player.position
 	click_stuck = 0.0
+
+
+func _click_set(p: Vector2) -> void:
+	click_goal = get_canvas_transform().affine_inverse() * p
+	click_replans = 0
+	click_drag_t = CLICK_DRAG_EVERY
+	_click_route()
+
+
+func _click_stop() -> void:
+	click_dest = Vector2.INF
+	click_path = []
+	click_pending = Vector2.INF
+	click_held = false
 
 
 func _click_move_input(event: InputEvent) -> void:
@@ -8200,11 +8253,13 @@ func _click_move_input(event: InputEvent) -> void:
 			click_held = false
 		elif not _click_blocked() and click_block_t <= 0.0 and not _click_on_button(event.position):
 			click_held = true
+			click_pending = Vector2.INF
 			_click_set(event.position)
-			pfx.ring(click_dest, 18.0, 5.0, Color("#fff2a8"), 0.35, 3.0)
+			if click_dest != Vector2.INF:
+				pfx.ring(click_dest, 18.0, 5.0, Color("#fff2a8"), 0.35, 3.0)
 	elif event is InputEventMouseMotion and click_held:
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not _click_blocked():
-			_click_set(event.position)
+			click_pending = event.position
 		else:
 			click_held = false
 
@@ -8212,10 +8267,13 @@ func _click_move_input(event: InputEvent) -> void:
 func _click_tick(delta: float) -> void:
 	if not _click_blocked():
 		click_block_t = maxf(0.0, click_block_t - delta)
+		click_drag_t = maxf(0.0, click_drag_t - delta)
+		if click_pending != Vector2.INF and click_drag_t <= 0.0:
+			_click_set(click_pending)
+			click_pending = Vector2.INF
 		return
 	click_block_t = 0.15
-	click_dest = Vector2.INF
-	click_held = false
+	_click_stop()
 
 
 # Fork SIMPLE MODE: attacks never move the hero. Dashes, leaps and teleport strikes still hit the same

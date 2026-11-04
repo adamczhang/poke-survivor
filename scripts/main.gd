@@ -705,6 +705,7 @@ func _ready() -> void:
 		var tu := TeamUi.new()
 		tu.m = self
 		ui.add_child(tu)
+		team_ui = tu
 	slots.picked.connect(_set_active)
 	cards = Cards.new()
 	ui.add_child(cards)
@@ -829,6 +830,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		kec.ui_input(event)
 		return
 	if _zoom_input(event):
+		return
+	_click_move_input(event)
+	# Browsers only allow fullscreen after a finger is lifted, so this acts on release, not on press.
+	if event is InputEventScreenTouch and not event.pressed and hud.fs_on and not (player.dead or paused or choosing) and hud.fs_rect().has_point(event.position):
+		DSP.toggle_fullscreen()
 		return
 	var slot := -1
 	var cyc := 0
@@ -1159,6 +1165,7 @@ func _fx_cap() -> int:
 
 
 func _process(delta: float) -> void:
+	_click_tick(delta)
 	hud.paused = paused
 	if not settings_open:
 		var want_ui: bool = paused and not player.dead
@@ -1411,6 +1418,7 @@ func _process(delta: float) -> void:
 	hud.tickets = tickets
 	hud.tickets10 = tickets10
 	hud.simple = SV.simple()
+	hud.fs_on = SV.simple() and DSP.fs_available()
 	_update_rift_hud()
 	_update_thief_hud()
 	wx.kind = wx_kind
@@ -2064,11 +2072,27 @@ func _update_player(delta: float) -> void:
 		spd *= 0.4
 	elif trap_sleep_t > 0.0:
 		spd *= 0.5
+	if click_dest != Vector2.INF:
+		if moving or player.position.distance_to(click_last) > 96.0:   # took over the controls, or teleported (rift, cave, Z-move)
+			click_dest = Vector2.INF
+			click_held = false
+		elif player.position.distance_to(click_dest) <= maxf(6.0, spd * delta):
+			click_dest = Vector2.INF
+		else:
+			v = (click_dest - player.position).normalized()
+			moving = true
 	if trap_conf_t > 0.0:
 		v = -v
 	var old_pos: Vector2 = player.position
 	player.position += v * spd * delta
 	player.position = _collide(player.position, player.radius * 0.55)
+	if click_dest != Vector2.INF:
+		click_last = player.position
+		# blocked by a wall or cliff: stop instead of walking on the spot (a root or freeze just waits)
+		var blocked: bool = spd > 1.0 and trap_conf_t <= 0.0 and old_pos.distance_to(player.position) < spd * delta * 0.3
+		click_stuck = click_stuck + delta if blocked else 0.0
+		if click_stuck >= CLICK_MOVE_STUCK and not click_held:
+			click_dest = Vector2.INF
 	player_vel = (player.position - old_pos) / maxf(delta, 0.0001)
 	player.invuln = maxf(0.0, player.invuln - delta)
 	simple_hit_lock = maxf(0.0, simple_hit_lock - delta)
@@ -8126,6 +8150,74 @@ func _autofire_all() -> bool:
 	return SV.simple()
 
 
+# Fork SIMPLE MODE: click the ground with the mouse and the hero walks there (no holding and dragging).
+# Fingers keep the joystick. Keyboard, joystick and pad cancel the walk as soon as they are used.
+const CLICK_MOVE_STUCK := 0.35   # seconds pressed against a wall before giving up on the walk
+var click_dest := Vector2.INF
+var team_ui: TeamUi = null
+var click_held := false          # holding the button keeps steering the walk toward the cursor
+var click_stuck := 0.0
+var click_last := Vector2.ZERO
+var click_block_t := 0.0         # the click that closes a card or the pause screen must not also walk
+
+
+func _click_blocked() -> bool:
+	return player == null or player.dead or paused or choosing or settings_open or shop_open or z_state != "" or arena_down
+
+
+func _click_on_button(p: Vector2) -> bool:
+	var rs: Array = [hud.pause_rects()[0]]
+	if hud.fs_on:
+		rs.append(hud.fs_rect())
+	if hud.act_txt != "":
+		rs.append(hud.act_rect())
+	if hud.z_btn > 0:
+		rs.append(hud.z_rect())
+	if hud.dyn_btn > 0:
+		rs.append(hud.dyn_rect())
+	if mode == "team":
+		rs.append_array(hud.team_rects())
+		if team_ui != null:
+			rs.append(team_ui._btn_rect())
+	rs.append_array(slots._rects())
+	for r in rs:
+		if (r as Rect2).has_point(p):
+			return true
+	return false
+
+
+func _click_set(p: Vector2) -> void:
+	click_dest = get_canvas_transform().affine_inverse() * p
+	click_last = player.position
+	click_stuck = 0.0
+
+
+func _click_move_input(event: InputEvent) -> void:
+	if not SV.simple() or event.device == InputEvent.DEVICE_ID_EMULATION:
+		return   # a finger also arrives as an emulated mouse: only a real mouse walks
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if not event.pressed:
+			click_held = false
+		elif not _click_blocked() and click_block_t <= 0.0 and not _click_on_button(event.position):
+			click_held = true
+			_click_set(event.position)
+			pfx.ring(click_dest, 18.0, 5.0, Color("#fff2a8"), 0.35, 3.0)
+	elif event is InputEventMouseMotion and click_held:
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not _click_blocked():
+			_click_set(event.position)
+		else:
+			click_held = false
+
+
+func _click_tick(delta: float) -> void:
+	if not _click_blocked():
+		click_block_t = maxf(0.0, click_block_t - delta)
+		return
+	click_block_t = 0.15
+	click_dest = Vector2.INF
+	click_held = false
+
+
 # Fork SIMPLE MODE: attacks never move the hero. Dashes, leaps and teleport strikes still hit the same
 # line or spot at their full range, but the hero stays put (auto-firing them made the camera jump).
 func _moves_stay_put() -> bool:
@@ -11504,6 +11596,8 @@ class Hud extends Node2D:
 	var tickets := 0
 	var tickets10 := 0
 	var simple := false   # Modo sencillo: sin contadores de tickets
+	var fs_on := false    # Modo sencillo: boton de pantalla completa
+	var fs_right := -1.0  # borde izquierdo del panel de contadores, que cambia con las cifras
 	var paused := false
 	var show_fps := false
 	var show_stats := false
@@ -12228,6 +12322,11 @@ class Hud extends Node2D:
 			elif not ready:
 				_ds(font, Vector2(c.x - 50.0, c.y + 70.0), L.t("Min 3"), HORIZONTAL_ALIGNMENT_CENTER, 100.0, 16, Color(0.75, 0.78, 0.85))
 
+	func fs_rect() -> Rect2:
+		var vp: Vector2 = get_viewport_rect().size
+		var right: float = fs_right if fs_right >= 0.0 else vp.x - 72.0 - DSP.insets(get_tree()).z - 200.0
+		return Rect2(right - 56.0, 8.0, 48.0, 52.0)
+
 	func pause_rects() -> Array:
 		var vp: Vector2 = get_viewport_rect().size
 		var ins: Vector4 = DSP.insets(get_tree())
@@ -12321,6 +12420,11 @@ class Hud extends Node2D:
 		var pw: float = maxf(200.0 if simple else 240.0, 28.0 + t10w + tw + cw + (0.0 if simple else 80.0) + 30.0 + (blw + 40.0 if balls > 0 else 0.0))
 		var top_r := Rect2(pr_right - pw, 8.0, pw, 60.0)
 		_panel(top_r, PANEL_BG, Color("#dfe9f2"), 2, 16)
+		fs_right = top_r.position.x
+		if fs_on:
+			var fr: Rect2 = fs_rect()
+			_panel(fr, PANEL_BG, Color("#dfe9f2"), 2, 12)
+			IC.draw_in(self, "full", fr.get_center(), 24.0)
 		_ds(font, Vector2(top_r.position.x, 30.0), L.t("Derrotados: %d") % kills, HORIZONTAL_ALIGNMENT_CENTER, pw, 18, Color.WHITE)
 		if not simple:
 			_ds(font, Vector2(rx - t10w, 58.0), str(tickets10), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 18, Color("#c47bff"))
@@ -12551,6 +12655,8 @@ class Stick extends Node2D:
 	func _input(event: InputEvent) -> void:
 		if event is InputEventScreenTouch:
 			if event.pressed and _id == -1:
+				if SV.simple() and event.device == InputEvent.DEVICE_ID_EMULATION:
+					return   # Modo sencillo: el raton se mueve con un clic, el joystick es solo para los dedos
 				if not fixed and bool(SV.d["settings"].get("manual_aim", false)) and event.position.x > get_viewport_rect().size.x * 0.5:
 					return   # con apuntado manual, la mitad derecha es para apuntar
 				if fixed:

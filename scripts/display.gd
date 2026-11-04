@@ -118,6 +118,31 @@ static func apply_window(from_user: bool = false) -> void:
 	DisplayServer.window_set_position(scr.position + (scr.size - sz) / 2)
 
 
+# Fork SIMPLE MODE: the fullscreen button. Hidden where the browser has no fullscreen for the page (iPhone Safari).
+static var _fs_ok := -1
+
+
+static func fs_available() -> bool:
+	if not is_web():
+		return is_desktop()
+	if _fs_ok < 0:
+		_fs_ok = 1 if bool(JavaScriptBridge.eval("!!(document.fullscreenEnabled || document.webkitFullscreenEnabled)", true)) else 0
+	return _fs_ok == 1
+
+
+# Asks the real window, because the player can also leave fullscreen with Esc.
+static func toggle_fullscreen() -> void:
+	var mode: int = DisplayServer.window_get_mode()
+	var on: bool = mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+	if is_web():   # also on phones and tablets, where apply_window does nothing
+		SV.ensure()
+		SV.d["settings"]["win_mode"] = 0 if on else 1
+		SV.save()
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if on else DisplayServer.WINDOW_MODE_FULLSCREEN)
+		return
+	set_window(0 if on else 1, win_res())
+
+
 static func set_window(mode: int, res: int) -> void:
 	SV.ensure()
 	SV.d["settings"]["win_mode"] = clampi(mode, 0, 1)

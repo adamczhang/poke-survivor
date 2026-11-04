@@ -54,6 +54,8 @@ var fav_btns: Array = []   # botones de los 3 favoritos (para devolverles el foc
 var tab_row: Control
 var mute_top: Button
 var set_top: Button
+var fs_top: Button   # Simple Mode: fullscreen button
+var fs_gap: Control
 var ticket_lbl: Label
 var ticket10_lbl: Label
 var toast_lbl: Label
@@ -895,6 +897,10 @@ func _ready() -> void:
 	top.add_child(_gap(8))
 	set_top = _icon_btn("gear", func(): if cur != "settings": _show("settings"))
 	top.add_child(set_top)
+	fs_gap = _gap(8)
+	top.add_child(fs_gap)
+	fs_top = _icon_btn("full", func(): DSP.toggle_fullscreen())
+	top.add_child(fs_top)
 	var sp := Control.new()   # todo queda a la izquierda; el menu principal ocupa la derecha
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(sp)
@@ -1262,6 +1268,8 @@ func _show(name: String) -> void:
 	for pn in [coin_pill, tix_pill, name_pill, news_top, support_top, mute_top, set_top]:
 		pn.visible = name != "test"
 	tix_pill.visible = tix_pill.visible and not SV.simple()   # Simple Mode: tickets only buy gacha pulls
+	fs_top.visible = name != "test" and not is_overlay and SV.simple() and DSP.fs_available()
+	fs_gap.visible = fs_top.visible
 	if is_overlay:
 		for pn2 in [coin_pill, tix_pill, name_pill, news_top, support_top, mute_top, set_top]:
 			pn2.visible = false
@@ -8289,6 +8297,9 @@ func _set_graphics() -> void:
 
 
 func _set_controls() -> void:
+	if SV.simple():
+		_sec("Con ratón")
+		settings_box.add_child(_label("Haz clic en el suelo y tu Pokémon caminará hasta allí. No hace falta mantener pulsado.", 20, Color("#c8d6ee")))
 	_sec("En móvil o tableta")
 	if SV.simple():
 		settings_box.add_child(_label("Pon el dedo en cualquier parte y arrástralo para moverte: el joystick aparece donde tocas. Tus movimientos atacan solos. El botón de arriba a la derecha pausa. Juega en horizontal.", 20, Color("#c8d6ee")))
